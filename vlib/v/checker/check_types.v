@@ -239,7 +239,7 @@ pub fn (mut c Checker) check_expected_call_arg(got ast.Type, expected_ ast.Type,
 			return
 		}
 		if got == ast.void_type {
-			return error('`$arg.expr` (no value) used as value')
+			return error('1`$arg.expr` (no value) used as value')
 		}
 		return error('cannot use `$got_typ_str` as `$expected_typ_str`')
 	}
@@ -342,9 +342,16 @@ pub fn (mut c Checker) check_matching_function_symbols(got_type_sym &ast.TypeSym
 	exp_info := exp_type_sym.info as ast.FnType
 	got_fn := got_info.func
 	exp_fn := exp_info.func
+	if c.fileis('aaa.v') {
+		println(got_fn)
+	}
+
+	is_method := got_fn.is_method
 	// we are using check() to compare return type & args as they might include
 	// functions themselves. TODO: optimize, only use check() when needed
-	if got_fn.params.len != exp_fn.params.len {
+	if (got_fn.params.len != exp_fn.params.len) && !(is_method
+		&& got_fn.params.len - 1 == exp_fn.params.len) {
+		// Allow `Struct.method(a,b,c)' to be passed to functions that expect `fn(a,b,c)`
 		return false
 	}
 	if got_fn.return_type.has_flag(.optional) != exp_fn.return_type.has_flag(.optional) {
@@ -354,13 +361,18 @@ pub fn (mut c Checker) check_matching_function_symbols(got_type_sym &ast.TypeSym
 		return false
 	}
 	for i, got_arg in got_fn.params {
-		exp_arg := exp_fn.params[i]
+		index := if is_method { i + 1 } else { i }
+		if is_method && index >= exp_fn.params.len {
+			// Handle the method passed mentioned above
+			break
+		}
+		exp_arg := exp_fn.params[index]
 		exp_arg_is_ptr := exp_arg.typ.is_ptr() || exp_arg.typ.is_pointer()
 		got_arg_is_ptr := got_arg.typ.is_ptr() || got_arg.typ.is_pointer()
 		if exp_arg_is_ptr != got_arg_is_ptr {
 			exp_arg_pointedness := if exp_arg_is_ptr { 'a pointer' } else { 'NOT a pointer' }
 			got_arg_pointedness := if got_arg_is_ptr { 'a pointer' } else { 'NOT a pointer' }
-			c.add_error_detail('`$exp_fn.name`\'s expected fn argument: `$exp_arg.name` is $exp_arg_pointedness, but the passed fn argument: `$got_arg.name` is $got_arg_pointedness')
+			c.add_error_detail("`$exp_fn.name`'s expected fn argument: `$exp_arg.name` is $exp_arg_pointedness, but the passed fn argument: `$got_arg.name` is $got_arg_pointedness")
 			return false
 		} else if exp_arg_is_ptr && got_arg_is_ptr {
 			continue

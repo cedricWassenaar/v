@@ -1718,6 +1718,7 @@ pub fn (mut c Checker) selector_expr(mut node ast.SelectorExpr) ast.Type {
 	}
 	field_name := node.field_name
 	sym := c.table.sym(typ)
+	has_method := sym.has_method(field_name)
 	if (typ.has_flag(.variadic) || sym.kind == .array_fixed) && field_name == 'len' {
 		node.typ = ast.int_type
 		return ast.int_type
@@ -1822,6 +1823,24 @@ pub fn (mut c Checker) selector_expr(mut node ast.SelectorExpr) ast.Type {
 		}
 		node.typ = field.typ
 		return field.typ
+	}
+	if has_method {
+		method := sym.find_method(field_name) or { return ast.void_type }
+
+		// idx := c.table.find_or_register_fn_type(p.mod, func, false, has_decl)
+
+		fn_type := ast.new_type(c.table.find_or_register_fn_type(c.mod, method, false,
+			true))
+		/*
+		node.name = name
+		node.kind = .function
+		node.info = ast.IdentFn{
+			typ: fn_type
+		}
+		*/
+		return fn_type
+		// QQQQQQQ
+		// return method.return_type
 	}
 	if sym.kind !in [.struct_, .aggregate, .interface_, .sum_type] {
 		if sym.kind != .placeholder {
@@ -3302,6 +3321,7 @@ pub fn (mut c Checker) ident(mut node ast.Ident) ast.Type {
 				else {}
 			}
 		}
+		// QQQQ
 		// Non-anon-function object (not a call), e.g. `onclick(my_click)`
 		if func := c.table.find_fn(name) {
 			fn_type := ast.new_type(c.table.find_or_register_fn_type(node.mod, func, false,
